@@ -9,7 +9,7 @@ class Program
         Console.WriteLine("======== 演示 1：自定义委托 —— 出库运费计费规则 ========");
         // 定义委托：按单据算运费。WMS 里同一张单可按不同计费规则收钱。
         CalcFee calc = ByWeight; // 声明时直接把方法放进取（也可先声明后赋值）
-        Console.WriteLine($"按重量：10kg x 2 = {calc(10m, 2)} 元");
+        Console.WriteLine($"按重量：10kg x 1 = {calc(10m, 1)} 元");
         calc = ByQuantity; // 换成按数量计费
         Console.WriteLine($"按数量：10件 x 2 = {calc(10m, 2)} 元");
 
@@ -49,6 +49,10 @@ class Program
         n.Deduct("SKU-2002", 1); // 正常：内部触发
         n.StockChanged?.Invoke(n, new("SKU-9999", 99)); // ✅ delegate 外部可乱触发（无门禁！）
         Console.WriteLine("↑ 看，外部能伪造一次库存变动 —— 这就是 event 存在的意义");
+
+
+        Practice p = new();
+        p.Run();
     }
 
     // ---------- 计费规则 ----------
@@ -85,7 +89,7 @@ class StockChangedEventArgs(string sku, int qty) : EventArgs
 }
 
 // 演示 5：库存服务 —— event（有门禁）
-class InventoryService
+partial class InventoryService
 {
     // event：外部只能 += / -=，不能直接触发
     public event EventHandler<StockChangedEventArgs>? StockChanged;

@@ -6,3 +6,5 @@ obj/
 .idea/
 .vs/
 .DS_Store
+*.user
+*.DotSettings.user
