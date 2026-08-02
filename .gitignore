@@ -1,1 +1,8 @@
 .code
+bin/
+obj/
+
+# IDE & OS
+.idea/
+.vs/
+.DS_Store
