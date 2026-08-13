@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vue 2 父子组件传值演示</title>
+    <script src="https://unpkg.com/vue@2.7.16/dist/vue.js"></script>
+    <style>
+      body {
+        margin: 0;
+        background: #f8fafc;
+        color: #0f172a;
+        font-family: system-ui, sans-serif;
+      }
+      .page {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 24px 16px;
+      }
+      .card {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 12px;
+        margin: 12px 0;
+        background: #fff;
+      }
+      .muted {
+        color: #666;
+        font-size: 13px;
+      }
+      .row {
+        margin-top: 8px;
+        display: flex;
+        gap: 8px;
+      }
+      .btn {
+        padding: 6px 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: #fff;
+        cursor: pointer;
+      }
+      .btn.primary {
+        background: #41b883;
+        color: #fff;
+        border-color: #41b883;
+      }
+      .badge {
+        font-size: 12px;
+        background: #f0f9ff;
+        color: #0369a1;
+        border: 1px solid #bae6fd;
+        border-radius: 999px;
+        padding: 2px 8px;
+      }
+      ul {
+        list-style: none;
+        padding-left: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <h2>Vue 2 父子组件传值演示（WMS 收货台）</h2>
+      <p class="muted">
+        依次演示：props、$emit、v-model、$refs（父调子方法）、$parent（子访问父）、provide/inject（祖→孙）、事件总线（兄弟间）。
+      </p>
+
+      <div id="app">
+        <div class="card">
+          <p class="muted">
+            props 传单据号：<code>:order-no="orderNo"</code>；v-model 双向绑定：
+            <code>v-model="currentSku"</code>；监听 <code>@scan</code>。
+          </p>
+          <receive-station
+            ref="station"
+            :order-no="orderNo"
+            v-model="currentSku"
+            @scan="onScan"
+          />
+          <div class="row">
+            <button class="btn" @click="$refs.station.clearInput()">
+              $refs 调用子组件 clearInput()
+            </button>
+          </div>
+          <p class="muted" style="margin-top: 8px">
+            当前 SKU（v-model 同步）：<strong>{{ currentSku }}</strong>
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="row">
+            <div class="card" style="flex: 1">
+              <p>兄弟组件 A（事件总线 emit）</p>
+              <button class="btn primary" @click="aSend">发给 B</button>
+            </div>
+            <div class="card" style="flex: 1">
+              <p>兄弟组件 B（事件总线 on）</p>
+              <p class="muted">收到：{{ bMsg || '暂无' }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ---- 事件总线（Vue 2 实现：一个空的 Vue 实例当广播站）----
+      var EventBus = new Vue();
+
+      Vue.component('warehouse-badge', {
+        // 孙组件：inject 拿到祖父 provide 的仓库信息
+        inject: ['warehouse'],
+        template:
+          '<span class="badge">孙组件 inject 到：{{ warehouse.code }} {{ warehouse.name }}</span>',
+      });
+
+      Vue.component('receive-station', {
+        props: {
+          orderNo: { type: String, required: true },
+          value: { type: String, default: '' }, // v-model 靠它接收
+        },
+        provide() {
+          return { warehouse: { code: 'WH-01', name: '华东一号库' } };
+        },
+        data() {
+          return { inputValue: this.value };
+        },
+        watch: {
+          value(val) {
+            this.inputValue = val; // 父级改动时同步回来
+          },
+        },
+        methods: {
+          submit() {
+            if (!this.inputValue) return;
+            // $emit 上报条码给父组件
+            this.$emit('scan', this.inputValue);
+            // $parent：子组件直接访问父组件方法（不推荐）
+            this.$parent && this.$parent.addLog('子组件用了 $parent 调父方法');
+            this.$emit('input', this.inputValue);
+          },
+          clearInput() {
+            this.inputValue = '';
+            this.$emit('input', '');
+          },
+        },
+        template: `
+          <div>
+            <p class="muted">
+              子组件 receive-station 通过 props 收到单据号：<strong>{{ orderNo }}</strong>
+            </p>
+            <input
+              v-model="inputValue"
+              style="width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+              placeholder="输入或扫描 SKU 编码"
+            />
+            <div class="row">
+              <button class="btn primary" @click="submit">提交（$emit scan）</button>
+              <button class="btn" @click="clearInput">清空</button>
+            </div>
+            <div style="margin-top: 8px"><warehouse-badge /></div>
+          </div>
+        `,
+      });
+
+      new Vue({
+        el: '#app',
+        data() {
+          return {
+            orderNo: 'PO-2026-0813',
+            currentSku: 'SKU-1001',
+            bMsg: '',
+          };
+        },
+        created() {
+          EventBus.$on('bmsg', (msg) => (this.bMsg = msg));
+        },
+        beforeDestroy() {
+          EventBus.$off('bmsg');
+        },
+        methods: {
+          onScan(barcode) {
+            alert('父组件收到子组件 $emit 上报的条码：' + barcode);
+          },
+          addLog(text) {
+            console.log('[父组件 addLog]', text);
+          },
+          aSend() {
+            EventBus.$emit('bmsg', '来自兄弟 A 的消息（事件总线）');
+          },
+        },
+      });
+    </script>
+  </body>
+</html>
